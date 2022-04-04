@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+
+  cockroachdb:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroachdb
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    command: ["start-single-node", "--insecure"]
+    restart: unless-stopped
+    networks:
+      - googlolab
+  
+  cockroachdb-init:
+    image: cockroachdb/cockroach:latest
+    container_name: cockroachdb-init
+    volumes:
+      - ./init-db.sh:/init-db.sh
+    depends_on:
+      - cockroachdb
+    restart: on-failure
+    entrypoint: "/bin/bash"
+    command: /init-db.sh linkgraph
+    networks:
+      - googlolab
+
+  golang-migrate:
+    image: migrate/migrate:latest
+    container_name: golang-migrate
+    volumes:
+      - ../linkgraph/db/cockroach/migrations:/migrations
+    depends_on:
+      - cockroachdb-init
+    command: ["-source", "file://migrations", "-database",  "cockroachdb://root@cockroachdb:26257/linkgraph?sslmode=disable", "up"]
+    networks:
+      - googlolab
+
+networks:
+    googlolab:
+        driver: bridge
