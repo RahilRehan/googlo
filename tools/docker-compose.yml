@@ -10,7 +10,7 @@ services:
       - "8080:8080"
     command: ["start-single-node", "--insecure"]
     restart: unless-stopped
-    networks:
+    networks: 
       - googlolab
   
   cockroachdb-init:
