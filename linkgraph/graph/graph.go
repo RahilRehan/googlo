@@ -53,9 +53,9 @@ type Graph interface{
 	FindLink(id uuid.UUID) (*Link, error)
 	
 	// links within the ID range [fromId, toId)
-	Links(fromId, toID uuid.UUID, retrievedBefore time.Time)
+	Links(fromId, toId uuid.UUID, retrievedBefore time.Time) (LinkIterator, error)
 	// Return edges for which the origin link's ID is within the [fromId, toId)
-	Edges(fromId, toId uuid.UUID, updatedBefore time.Time)
+	Edges(fromId, toId uuid.UUID, updatedBefore time.Time) (EdgeIterator, error)
 	
 	RemoveStaleEdges(fromId uuid.UUID, updatedBefore time.Time) error
 }
