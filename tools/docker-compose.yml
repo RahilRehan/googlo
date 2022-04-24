@@ -30,7 +30,7 @@ services:
     image: migrate/migrate:latest
     container_name: golang-migrate
     volumes:
-      - ../linkgraph/db/cockroach/migrations:/migrations
+      - ../linkgraph/cockroachdb/migrations:/migrations
     depends_on:
       - cockroachdb-init
     command: ["-source", "file://migrations", "-database",  "cockroachdb://root@cockroachdb:26257/linkgraph?sslmode=disable", "up"]

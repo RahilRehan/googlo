@@ -50,7 +50,7 @@ func (q *Queries) EdgesInPartition(ctx context.Context, arg EdgesInPartitionPara
 	return items, nil
 }
 
-const findLink = `-- name: FindLink :many
+const findLink = `-- name: FindLink :one
 SELECT url, retrieved_at FROM links WHERE id=$1
 `
 
@@ -59,27 +59,11 @@ type FindLinkRow struct {
 	RetrievedAt sql.NullTime   `json:"retrieved_at"`
 }
 
-func (q *Queries) FindLink(ctx context.Context, id uuid.UUID) ([]FindLinkRow, error) {
-	rows, err := q.db.QueryContext(ctx, findLink, id)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []FindLinkRow
-	for rows.Next() {
-		var i FindLinkRow
-		if err := rows.Scan(&i.Url, &i.RetrievedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) FindLink(ctx context.Context, id uuid.UUID) (FindLinkRow, error) {
+	row := q.db.QueryRowContext(ctx, findLink, id)
+	var i FindLinkRow
+	err := row.Scan(&i.Url, &i.RetrievedAt)
+	return i, err
 }
 
 const linksInPartition = `-- name: LinksInPartition :many

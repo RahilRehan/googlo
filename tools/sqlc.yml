@@ -1,10 +1,10 @@
 version: 1
 packages:
-  - path: "../linkgraph/db/cockroach/sqlc"
+  - path: "../linkgraph/cockroachdb/sqlc"
     name: "sqlc"
     engine: "postgresql"
-    schema: "../linkgraph/db/cockroach/migrations"
-    queries: "../linkgraph/db/cockroach/queries"
+    schema: "../linkgraph/cockroachdb/migrations"
+    queries: "../linkgraph/cockroachdb/queries"
     emit_exact_table_names: true
     emit_interface: true
     emit_json_tags: true

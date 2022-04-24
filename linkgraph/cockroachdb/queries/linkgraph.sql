@@ -4,7 +4,7 @@ INSERT INTO links (url, retrieved_at) VALUES ($1, $2)
 ON CONFLICT (url) DO UPDATE SET retrieved_at=GREATEST(links.retrieved_at, $2)
 RETURNING id, retrieved_at;
 
--- name: FindLink :many
+-- name: FindLink :one
 SELECT url, retrieved_at FROM links WHERE id=$1;
 
 -- name: LinksInPartition :many

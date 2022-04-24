@@ -28,9 +28,7 @@ UpdatedAt
 - Delete stale edges
 
 ## Database
-- InMemoryDB for testing
-    - Handle all the edge cases carefully, ex: edge constraints and reference, look at cockroachDB migrations to understand the constraints.
-- CockroachDB for production
+- CockroachDB
     - CockroachDB can easily scale horizontally, by just increasing number of nodes.
     - ACID compliant
     - Support distributed SQL transactions

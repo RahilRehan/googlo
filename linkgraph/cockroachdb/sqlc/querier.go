@@ -12,7 +12,7 @@ import (
 
 type Querier interface {
 	EdgesInPartition(ctx context.Context, arg EdgesInPartitionParams) ([]Edges, error)
-	FindLink(ctx context.Context, id uuid.UUID) ([]FindLinkRow, error)
+	FindLink(ctx context.Context, id uuid.UUID) (FindLinkRow, error)
 	LinksInPartition(ctx context.Context, arg LinksInPartitionParams) ([]Links, error)
 	RemoveStaleEdges(ctx context.Context, arg RemoveStaleEdgesParams) error
 	UpsertEdge(ctx context.Context, arg UpsertEdgeParams) (UpsertEdgeRow, error)
