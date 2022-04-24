@@ -1,146 +1,123 @@
 package cockroach
 
 import (
-	"context"
 	"database/sql"
-	"errors"
-	"fmt"
-	"log"
 	"time"
 
+	"github.com/RahilRehan/googlo/linkgraph/graph"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
-
-	"github.com/RahilRehan/googlo/linkgraph/cockroachdb/sqlc"
-	"github.com/RahilRehan/googlo/linkgraph/graph"
+	"golang.org/x/xerrors"
 )
 
-const driver = "postgres"
+var (
+	upsertLinkQuery = `
+INSERT INTO links (url, retrieved_at) VALUES ($1, $2) 
+ON CONFLICT (url) DO UPDATE SET retrieved_at=GREATEST(links.retrieved_at, $2)
+RETURNING id, retrieved_at
+`
+	findLinkQuery         = "SELECT url, retrieved_at FROM links WHERE id=$1"
+	linksInPartitionQuery = "SELECT id, url, retrieved_at FROM links WHERE id >= $1 AND id < $2 AND retrieved_at < $3"
 
-type CockroachDBGraph struct{
-	db *sqlc.Queries
+	upsertEdgeQuery = `
+INSERT INTO edges (src, dst, updated_at) VALUES ($1, $2, NOW())
+ON CONFLICT (src,dst) DO UPDATE SET updated_at=NOW()
+RETURNING id, updated_at
+`
+	edgesInPartitionQuery = "SELECT id, src, dst, updated_at FROM edges WHERE src >= $1 AND src < $2 AND updated_at < $3"
+	removeStaleEdgesQuery = "DELETE FROM edges WHERE src=$1 AND updated_at < $2"
+
+	// Compile-time check for ensuring CockroachDbGraph implements Graph.
+	_ graph.Graph = (*CockroachDBGraph)(nil)
+)
+
+type CockroachDBGraph struct {
+	db *sql.DB
 }
 
-
-func NewCockroachDBGraph(dsn string) *CockroachDBGraph {
-	db, err := sql.Open(driver, dsn)
-	if err != nil{
-		log.Fatalln(err)
+func NewCockroachDbGraph(dsn string) (*CockroachDBGraph, error) {
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, err
 	}
 
-	return &CockroachDBGraph{db: sqlc.New(db)}
+	return &CockroachDBGraph{db: db}, nil
+}
+
+func (c *CockroachDBGraph) Close() error {
+	return c.db.Close()
 }
 
 func (c *CockroachDBGraph) UpsertLink(link *graph.Link) error {
-	upsertedLink, err := c.db.UpsertLink(
-		context.Background(), 
-		sqlc.UpsertLinkParams{
-			Url: sql.NullString{String: link.URL, Valid: true},
-			RetrievedAt: sql.NullTime{Time: link.RetrievedAt.UTC(), Valid: true},
-		},
-	)
-	
-	if err != nil{
-		return errors.New(fmt.Sprintf("upsert link: %s", err))
+	row := c.db.QueryRow(upsertLinkQuery, link.URL, link.RetrievedAt.UTC())
+	if err := row.Scan(&link.ID, &link.RetrievedAt); err != nil {
+		return xerrors.Errorf("upsert link: %w", err)
 	}
 
-	link.RetrievedAt = upsertedLink.RetrievedAt.Time.UTC()
-	link.ID = upsertedLink.ID
+	link.RetrievedAt = link.RetrievedAt.UTC()
 	return nil
 }
 
-func (c *CockroachDBGraph) UpsertEdge(edge *graph.Edge) error{
-	upsertedEdge, err := c.db.UpsertEdge(
-		context.Background(),
-		sqlc.UpsertEdgeParams{
-			Src: edge.Source,
-			Dst: edge.Destination,
-		},
-	)
+func (c *CockroachDBGraph) FindLink(id uuid.UUID) (*graph.Link, error) {
+	row := c.db.QueryRow(findLinkQuery, id)
+	link := &graph.Link{ID: id}
+	if err := row.Scan(&link.URL, &link.RetrievedAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, xerrors.Errorf("find link: %w", graph.ErrNotFound)
+		}
 
-	if isForeignKeyViolationError(err){
-		return errors.New(fmt.Sprintf("upsert edge: foreign key error"))
+		return nil, xerrors.Errorf("find link: %w", err)
 	}
 
-	if err != nil{
-		return errors.New(fmt.Sprintf("upsert edge: %s", err))
+	link.RetrievedAt = link.RetrievedAt.UTC()
+	return link, nil
+}
+
+func (c *CockroachDBGraph) Links(fromID, toID uuid.UUID, accessedBefore time.Time) (graph.LinkIterator, error) {
+	rows, err := c.db.Query(linksInPartitionQuery, fromID, toID, accessedBefore.UTC())
+	if err != nil {
+		return nil, xerrors.Errorf("links: %w", err)
+
+	}
+	return &linkIterator{rows: rows}, nil
+}
+
+func (c *CockroachDBGraph) UpsertEdge(edge *graph.Edge) error {
+	row := c.db.QueryRow(upsertEdgeQuery, edge.Src, edge.Dst)
+	if err := row.Scan(&edge.ID, &edge.UpdatedAt); err != nil {
+		if isForeignKeyViolationError(err) {
+			err = graph.ErrUnknownEdgeLinks
+		}
+		return xerrors.Errorf("upsert edge: %w", err)
 	}
 
-	edge.UpdatedAt = upsertedEdge.UpdatedAt.Time.UTC()
-	edge.ID = upsertedEdge.ID
-	
+	edge.UpdatedAt = edge.UpdatedAt.UTC()
 	return nil
 }
 
-func (c *CockroachDBGraph) FindLink(id uuid.UUID) (*graph.Link, error){
-	foundLink, err := c.db.FindLink(context.Background(),id)
-	if err != nil{
-		return nil, errors.New(fmt.Sprintf("find link: %s", err))
+func (c *CockroachDBGraph) Edges(fromID, toID uuid.UUID, updatedBefore time.Time) (graph.EdgeIterator, error) {
+	rows, err := c.db.Query(edgesInPartitionQuery, fromID, toID, updatedBefore.UTC())
+	if err != nil {
+		return nil, xerrors.Errorf("edges: %w", err)
 	}
 
-	return &graph.Link{
-		ID: id,
-		URL: foundLink.Url.String,
-		RetrievedAt: foundLink.RetrievedAt.Time.UTC(),
-	}, nil
+	return &edgeIterator{rows: rows}, nil
 }
 
-func (c *CockroachDBGraph) Links(fromId, toId uuid.UUID, retrievedBefore time.Time) (graph.LinkIterator, error){
-	links, err := c.db.LinksInPartition(
-		context.Background(),
-		sqlc.LinksInPartitionParams{
-			ID: fromId, ID_2: toId, 
-			RetrievedAt: sql.NullTime{Time: retrievedBefore, Valid:true}},
-		)
-	
-	if err != nil{
-		return nil, errors.New(fmt.Sprintf("links: %s", err))
+func (c *CockroachDBGraph) RemoveStaleEdges(fromID uuid.UUID, updatedBefore time.Time) error {
+	_, err := c.db.Exec(removeStaleEdgesQuery, fromID, updatedBefore.UTC())
+	if err != nil {
+		return xerrors.Errorf("remove stale edges: %w", err)
 	}
 
-	return &linkIterator{
-		currentIdx: 0,
-		links: links,
-	}, nil
-
-}
-
-func (c *CockroachDBGraph) Edges(fromId, toId uuid.UUID, updatedBefore time.Time) (graph.EdgeIterator, error){
-	edges, err := c.db.EdgesInPartition(
-		context.Background(),
-		sqlc.EdgesInPartitionParams{
-			Src: fromId,
-			Dst: toId,
-			UpdatedAt: sql.NullTime{Time:updatedBefore, Valid: true},
-		},
-	)
-
-	if err != nil{
-		return nil, errors.New(fmt.Sprintf("edges: %s", err))
-	}
-
-	return &edgeIterator{
-		currentIdx: 0,
-		edges: edges,
-	}, nil
-
-}
-
-func (c *CockroachDBGraph)RemoveStaleEdges(fromId uuid.UUID, updatedBefore time.Time) error{
-	err := c.db.RemoveStaleEdges(
-		context.Background(),
-		sqlc.RemoveStaleEdgesParams{Src: fromId, UpdatedAt: sql.NullTime{Time: updatedBefore, Valid: true}},
-	)
-	if err != nil{
-		return errors.New(fmt.Sprintf("remove stale edges: %s", err))
-	}
 	return nil
 }
 
 func isForeignKeyViolationError(err error) bool {
-    pqErr, valid := err.(*pq.Error)
-    if !valid {
-        return false
-    }
-    return pqErr.Code.Name() == "foreign_key_violation"
-}
+	pqErr, valid := err.(*pq.Error)
+	if !valid {
+		return false
+	}
 
+	return pqErr.Code.Name() == "foreign_key_violation"
+}

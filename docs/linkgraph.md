@@ -15,16 +15,12 @@ SourceLink
 DestinationLink
 UpdatedAt
 ```
-
-## ER Diagram
- Diagram
-
 ## Operations
 - Insert or update links.
 - Iterate over all links.
 - Lookup a link by ID.
 - Insert of update edges.
-- Iterate over all edges. 
+- Iterate over all edges.
 - Delete stale edges
 
 ## Database
@@ -37,4 +33,3 @@ UpdatedAt
 ## Migrations
 - `golang-migrate/migrate` will be used to manage schema migrations
 - it ensures that migrations are run only once by maintaining state in two additional tables.
-- 

@@ -1,6 +1,7 @@
 package cockroach_test
 
 import (
+	"log"
 	"testing"
 
 	cockroach "github.com/RahilRehan/googlo/linkgraph/cockroachdb"
@@ -17,7 +18,12 @@ type cockroachDBTestSuite struct {
 }
 
 func TestCockroachDBTestSuite(t *testing.T) {
-	db := cockroach.NewCockroachDBGraph("postgresql://root@localhost:26257/linkgraph?sslmode=disable")
+	db, err := cockroach.NewCockroachDbGraph("postgresql://root@localhost:26257/linkgraph?sslmode=disable")
+
+	if err != nil{
+		log.Fatalln(err)
+	}
+
 	c := cockroachDBTestSuite{
 		cdb: db,
 	}
@@ -42,16 +48,17 @@ func (c *cockroachDBTestSuite) TestUpsertLink() {
 	}
 }
 
-//func (c *cockroachDBTestSuite) TestUpsertEdge() {
-//	for _, link := range googleLinks {
-//		err := c.cdb.UpsertLink(&link)
-//		assert.Nil(c.T(), err)
-//	}
-//
-//	edgeOne := graph.Edge{
-//		Source:      googleLinks[0].ID,
-//		Destination: googleLinks[1].ID,
-//	}
-//	err := c.cdb.UpsertEdge(&edgeOne)
-//	assert.Nil(c.T(), err)
-//}
+func (c *cockroachDBTestSuite) TestUpsertEdge() {
+	for idx := range googleLinks {
+		err := c.cdb.UpsertLink(&googleLinks[idx])
+		assert.Nil(c.T(), err)
+	}
+
+	edgeOne := graph.Edge{
+		Src: googleLinks[0].ID,
+		Dst: googleLinks[1].ID,
+	}
+
+	err := c.cdb.UpsertEdge(&edgeOne)
+	assert.Nil(c.T(), err)
+}

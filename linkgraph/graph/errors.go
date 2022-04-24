@@ -1,10 +1,9 @@
 package graph
 
-import (
-	"fmt"
-)
+import "golang.org/x/xerrors"
 
 var (
-	ErrUnknownEdgeLinks = fmt.Errorf("unknown source/destination for edge")
-	ErrNotFound = fmt.Errorf("not found")
+	ErrNotFound = xerrors.New("not found")
+
+	ErrUnknownEdgeLinks = xerrors.New("unknown source and/or destination for edge")
 )

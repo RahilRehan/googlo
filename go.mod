@@ -6,6 +6,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/lib/pq v1.10.2
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f
 )
 
 require (
