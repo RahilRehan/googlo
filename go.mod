@@ -3,6 +3,7 @@ module github.com/RahilRehan/googlo
 go 1.18
 
 require (
+	github.com/elastic/go-elasticsearch v0.0.0
 	github.com/google/uuid v1.3.0
 	github.com/lib/pq v1.10.2
 	github.com/stretchr/testify v1.7.0
