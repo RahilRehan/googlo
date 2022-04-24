@@ -17,21 +17,21 @@ import (
 
 const driver = "postgres"
 
-type cockroachDBGraph struct{
+type CockroachDBGraph struct{
 	db *sqlc.Queries
 }
 
 
-func NewCockroachDBGraph(dsn string) *cockroachDBGraph {
+func NewCockroachDBGraph(dsn string) *CockroachDBGraph {
 	db, err := sql.Open(driver, dsn)
 	if err != nil{
 		log.Fatalln(err)
 	}
 
-	return &cockroachDBGraph{db: sqlc.New(db)}
+	return &CockroachDBGraph{db: sqlc.New(db)}
 }
 
-func (c *cockroachDBGraph) UpsertLink(link *graph.Link) error {
+func (c *CockroachDBGraph) UpsertLink(link *graph.Link) error {
 	upsertedLink, err := c.db.UpsertLink(
 		context.Background(), 
 		sqlc.UpsertLinkParams{
@@ -39,17 +39,17 @@ func (c *cockroachDBGraph) UpsertLink(link *graph.Link) error {
 			RetrievedAt: sql.NullTime{Time: link.RetrievedAt.UTC(), Valid: true},
 		},
 	)
-
 	
 	if err != nil{
 		return errors.New(fmt.Sprintf("upsert link: %s", err))
 	}
 
 	link.RetrievedAt = upsertedLink.RetrievedAt.Time.UTC()
+	link.ID = upsertedLink.ID
 	return nil
 }
 
-func (c *cockroachDBGraph) UpsertEdge(edge *graph.Edge) error{
+func (c *CockroachDBGraph) UpsertEdge(edge *graph.Edge) error{
 	upsertedEdge, err := c.db.UpsertEdge(
 		context.Background(),
 		sqlc.UpsertEdgeParams{
@@ -67,11 +67,12 @@ func (c *cockroachDBGraph) UpsertEdge(edge *graph.Edge) error{
 	}
 
 	edge.UpdatedAt = upsertedEdge.UpdatedAt.Time.UTC()
+	edge.ID = upsertedEdge.ID
 	
 	return nil
 }
 
-func (c *cockroachDBGraph) FindLink(id uuid.UUID) (*graph.Link, error){
+func (c *CockroachDBGraph) FindLink(id uuid.UUID) (*graph.Link, error){
 	foundLink, err := c.db.FindLink(context.Background(),id)
 	if err != nil{
 		return nil, errors.New(fmt.Sprintf("find link: %s", err))
@@ -84,7 +85,7 @@ func (c *cockroachDBGraph) FindLink(id uuid.UUID) (*graph.Link, error){
 	}, nil
 }
 
-func (c *cockroachDBGraph) Links(fromId, toId uuid.UUID, retrievedBefore time.Time) (graph.LinkIterator, error){
+func (c *CockroachDBGraph) Links(fromId, toId uuid.UUID, retrievedBefore time.Time) (graph.LinkIterator, error){
 	links, err := c.db.LinksInPartition(
 		context.Background(),
 		sqlc.LinksInPartitionParams{
@@ -103,7 +104,7 @@ func (c *cockroachDBGraph) Links(fromId, toId uuid.UUID, retrievedBefore time.Ti
 
 }
 
-func (c *cockroachDBGraph) Edges(fromId, toId uuid.UUID, updatedBefore time.Time) (graph.EdgeIterator, error){
+func (c *CockroachDBGraph) Edges(fromId, toId uuid.UUID, updatedBefore time.Time) (graph.EdgeIterator, error){
 	edges, err := c.db.EdgesInPartition(
 		context.Background(),
 		sqlc.EdgesInPartitionParams{
@@ -124,7 +125,7 @@ func (c *cockroachDBGraph) Edges(fromId, toId uuid.UUID, updatedBefore time.Time
 
 }
 
-func (c *cockroachDBGraph)RemoveStaleEdges(fromId uuid.UUID, updatedBefore time.Time) error{
+func (c *CockroachDBGraph)RemoveStaleEdges(fromId uuid.UUID, updatedBefore time.Time) error{
 	err := c.db.RemoveStaleEdges(
 		context.Background(),
 		sqlc.RemoveStaleEdgesParams{Src: fromId, UpdatedAt: sql.NullTime{Time: updatedBefore, Valid: true}},
